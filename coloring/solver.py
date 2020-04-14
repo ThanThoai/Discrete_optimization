@@ -1,227 +1,340 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
+import random as rd 
+import gc 
+import math
+from collections import defaultdict
+import copy
+import sys 
 
-import random
-from queue import Queue
-from typing import List
-import sys
 
-class Tabu:
-    def __init__(self, tabu_size):
-        self.tabu_size = tabu_size
-        self.tabu_set  = set()
-        self.tabu_queue = Queue()
-    
-    def is_find(self, node: int) -> bool:
-        if node in self.tabu_set:
-            return True 
-        return False
-
-    def push(self, node : int):
-        if self.is_find(node):
-            pass
-        self.tabu_set.add(node)
-        self.tabu_queue.put(node)
-        if self.tabu_queue.qsize() > self.tabu_size:
-            self.tabu_queue.get()
+class Node:
+    def __init__(self, id = -1, colors = None):
+        self.degree = 0
+        self.color = -1
+        self.neighbor_node = []
+        self.neighbor_color = {}
+        self.ColorsDomans = colors
+        self.id = id 
         
-    
-    def pop(self):
-        top = self.tabu_queue.get()
-        self.tabu_set.remove(top)
-
-
-def select_next_node(violation : List[int], color : List[int], tabu : Tabu):
-    max_violation = -sys.maxsize - 1
-    # print(max_violation)
-    max_violation_node = []
-    # print('aaa')
-    # print(len(violation))
-    for node in range(len(violation)):
-        # print(node)
-        # print(max_violation_node)
-        if violation[node] == 0:
-            continue
-        if tabu.is_find(node):
-            # print("find")
-            continue
-        if max_violation == violation[node]:
-            # print('a1')
-            max_violation_node.append(node)
+class Graph:
+    def __init__(self, num_nodes):
+        self.idx = 0
+        self.nodes = []
         
-        elif max_violation < violation[node]:
-            # print('a2')
-            max_violation = violation[node]
-            max_violation_node = []
-            max_violation_node.append(node)
-    # print(len(max_violation_node))
-    # 1 / 0
-    if len(max_violation_node) == 0:
-        return -1
-    
-    return max_violation_node[random.randint(0, len(max_violation_node) - 1)] 
-
-
-def change_color(node : int, node_neighbor : List[int], color : List[int], max_color : int, violation : List[int], total_violation : int):
-    color_count = [0 for i in range(max_color)]
-    for node_n in node_neighbor:
-        neighbor_color = color[node_n]
-        color_count[neighbor_color] += 1
-    
-    
-    min_color_count = sys.maxsize
-    min_color = []
-    for c in range(max_color):
-        if c == color[node]:
-            continue
-            
-        if min_color_count > color_count[c]:
-            min_color_count = color_count[c]
-            min_color = []
-            min_color.append(c)
+        for i in range(num_nodes):
+            self.nodes.append(Node(i, set(range(0, num_nodes))))
         
-        elif min_color_count == color_count[c]:
-            min_color.append(c)
+        self.length = num_nodes
+        self.color_used = set
+        self.violation = 0 
+        self.edge_count = 0
+        
+    def get_density(self):
+        return 2 * self.edge_count / self.length * (self.length - 1)
     
-    if not min_color:
-        print("List empty")
-        # 1/ 0
-    new_color = min_color[random.randint(0, len(min_color) - 1)]
-    for node_n in node_neighbor:
-        if color[node_n] == color[node]:
-            violation[node_n] -= 1
-            violation[node] -= 1
-            total_violation -= 2
-        elif color[node_n] == new_color:
-            violation[node_n] += 1
-            violation[node] += 1
-            total_violation += 2
-    
-    color[node] = new_color
+    def __len__(self):
+        return self.length
     
 
-
-def init(color : List[int], max_color : int):
-    new_color = []
-    for i in range(len(color)):
-        new_color.append(random.randint(0, max_color - 1))
-    # print("color")
-    # print(new_color)
-    return new_color
-
-def init_violation(connection, color : List[int]):
-    violation = []
-    print(color)
-    total_violation = 0
-    for i in range(len(connection)):
-        v = 0
-        for neighbor in connection[i]:
-            # print(len(color))
-            # print(i)
-            # print(neighbor)
-            if color[i] == color[neighbor]:
-                v += 1
-        violation.append(v)
-        total_violation += v
-    # print(violation)
-    print(color)
-    return violation, total_violation
-
-def is_feasible(connection, color : List[int], max_color : int, tabu_size : int):
-    step_limit = 1000
-    step_count = 0
-    print(color)
-    violation, total_violation = init_violation(connection, color)
-    print(color)
-    tabu = Tabu(tabu_size)
-    while step_count < step_limit and total_violation > 0:
-        node = select_next_node(violation, color, tabu)
-        print(node)
-        print(violation)
-        # 1 / 0
-        while node == -1:
-            # violation, total_violation = init_violation(connection, color)
-            # print(node)
-            # 1 / 0
-            tabu.pop()
-            # print(node)
-            node = select_next_node(violation, color, tabu)
-            print(node)
-            # print(node)
-        tabu.push(node)
-        change_color(node, connection[node], color, max_color, violation, total_violation)
-        step_count += 1
-    return bool(total_violation == 0), step_count
-
-def remove_color(color : List[int], max_color : int):
-    new_color = []
-    index_remove = random.randint(0, max_color - 1)
-    for c in color:
-        if c == index_remove:
-            new_color.append(random.randint(0, max_color - 2))
-        elif c > index_remove:
-            new_color.append(c - 1)
+class TabuList:
+    
+    def __init__(self):
+        self.elements = defaultdict(list)
+        self.frequencies = defaultdict(list)
+        
+    def decrease_penalties(self):
+        deleted = []
+        for key in self.elements.keys():
+            self.elements[key][0] = -1
+            if self.elements[key][0] == 0:
+                deleted.append(key)
+        
+        for i in range(len(deleted)):
+            self.elements.pop(deleted[i], None)
+        
+    def add(self, element, violations, threshold):
+        self.elements[element] = [threshold, violations]
+        
+        if element in self.frequencies.keys():
+            self.frequencies[element][0] += 1
         else:
-            new_color.append(c)
-    return new_color 
+            self.frequencies[element] = [1, violations]
+        
+        
+    def update(self, element, violations):
+        if element in self.elements.keys():
+            if self.elements[element][1] > violations:
+                self.elements.pop(element, None)
+                return True 
+            else:
+                return False 
+        else:
+            return False 
+        
+    def __len__(self):
+        return len(self.elements)
+    
+    def clear(self):
+        self.elements.clear()
+        
+def getUnassignedNode(graph : Graph):
+    nodes = []
+    for i in range(len(graph)):
+        if graph.nodes[i].color == -1:
+            nodes.append(graph.nodes[i])
+    return nodes 
 
-def search(connection):
-    color = [0 for i in range(len(connection))]
-    max_color = len(connection)
-    color = init(color, max_color)
-    print(color)
-    tabu_limit = len(connection) / 10
-    feasible_color = [-1]
-    feasible_color_count = -1 
-    for i in range(max_color, 0, -1):
-        retry_limit = 100
-        retry_count = 0
+def getNodeColor(node : Node, colors):
+    if node.color != -1:
+        return node.color
+    else:
+        availableColors = colors - node.neighbor_color.keys()
+        node.color = min(availableColors)
+        return node.color
+    
+def propagateConstraint(node : Node, color, flag = True):
+    for i in range(len(node.neighbor_node)):
+        if color in node.neighbor_node[i].neighbor_color:
+            node.neighbor_node[i].neighbor_color[color] += 1
+        else:
+            node.neighbor_node[i].neighbor_color[color] = 1
+        if flag:
+            if color in node.neighbor_node[i].ColorsDomans:
+                node.neighbor_node[i].ColorsDomans.remove(color)
+        
+def getConstraintViolationsCount(node : Node, color):
+    if color in node.neighbor_color.keys():
+        return node.neighbor_color[color]
+    return 0
+
+def getExplorationList(graph : Graph):
+    return graph.nodes
+
+def initSolution(graph, colors):
+    color_used = set()
+    nodes = getUnassignedNode(graph)
+    for i in range(len(nodes)):
+        color = getNodeColor(nodes[i], colors)
+        propagateConstraint(nodes[i], color)
+        color_used.add(color)
+    return color_used
+
+def evalutate(graph : Graph):
+    beta = 1 + int(0.1 * math.sqrt(graph.get_density()))
+    return len(graph.color_used) + beta * graph.violation
+
+def removeColor(graph : Graph):
+    deleted = len(graph.color_used) - 1
+    graph.color_used.remove(deleted)
+    for i in range(len(graph)):
+        if graph.nodes[i].color == deleted:
+            graph.nodes[i].color = -1
+        if deleted in graph.nodes[i].neighbor_color.keys():
+            graph.nodes[i].neighbor_color.pop(deleted, None)
+        graph.nodes[i].ColorsDomain = copy.deepcopy(graph.color_used)
+        
+    nodes = getUnassignedNode(graph)
+    for i in range(len(nodes)):
+        nodeId, color = getNextAssignment(nodes[i])
+        assignColor(graph, nodeId, color, False)
+    
+    return graph
+
+def getNextAssignment(node : Node, cur_violation = None, tabuList = None):
+    if cur_violation is None:
+        cur_violation = sys.maxsize
+    color_assigned = -1
+    if tabuList == None:
+        tabuList = TabuList()
+    
+    for color in node.ColorsDomans:
+        violation_count = getConstraintViolationsCount(node, color)
+        if (node.id, color) in tabuList.elements:
+            if tabuList.update((node.id, color), violation_count) == False:
+                continue
+        
+        if cur_violation >= violation_count and color != node.color:
+            cur_violation = violation_count
+            color_assigned = color
+    
+    return node.id, color_assigned
+
+def assignColor(graph : Node, nodeId, color, flag = True):
+    constrains_bf_assign = getConstraintViolationsCount(graph.nodes[nodeId], graph.nodes[nodeId].color)
+    removeColorFromNeighbors(graph.nodes[nodeId], graph.nodes[nodeId].color)
+    graph.nodes[nodeId].color = color 
+    graph.color_used.add(color)
+    propagateConstraint(graph.nodes[nodeId], color, flag)
+    constrains_af_assign = getConstraintViolationsCount(graph.nodes[nodeId], color)
+    graph.violation += (constrains_af_assign - constrains_bf_assign)
+    
+  
+def removeColorFromNeighbors(node : Node, color):
+    for i in range(len(node.neighbor_node)):
+        if color in node.neighbor_node[i].neighbor_color.keys():
+            node.neighbor_node[i].neighbor_color[color] -= 1
+            if node.neighbor_node[i].neighbor_color[color] == 0:
+                node.neighbor_node[i].neighbor_color.pop(color, None)
+                
+def getNextBestterAssignment(graph : Graph, tabu_list):
+    violation_count = sys.maxsize
+    cur_color = -1
+    cur_id = -1
+    for i in range(len(graph)):
+        violation_count_bf = getConstraintViolationsCount(graph.nodes[i], graph.nodes[i].color)
+        
+        if violation_count_bf == 0:
+            continue
+        
+        nodeId, color = getNextAssignment(graph.nodes[i], None, tabu_list)
+        if color == graph.nodes[nodeId].color or color == -1:
+            continue 
+        
+        violation_count_af = getConstraintViolationsCount(graph.nodes[i], graph.nodes[i].color)
+        if violation_count > (violation_count_af - violation_count_bf):
+            cur_color = color
+            cur_id = nodeId 
+            violation_count = violation_count_af - violation_count_bf 
+    return cur_id, cur_color, violation_count
+            
+    
+
+def getSolution(graph : Graph, max_iter, alpha):
+    tabu_list = TabuList()
+    restart_limit = 0
+    epsilon = 1.1
+    for i in range(-1, restart_limit):
+        i = 0
+        obj_function = evalutate(graph)
+        last_impro = 0
+        best_violation = graph.violation
+        while i  < max_iter:
+            nodeId, color, violation = getNextBestterAssignment(graph, tabu_list)
+            if color == -1:
+                break
+            assignColor(graph, nodeId, False)
+            if graph.violation == 0:
+                break 
+            tabu_list.decrease_penalties()
+            penalty = alpha * int(graph.violation + pow(graph.violation, 0.9) + math.sqrt(graph.get_density()) / len(graph.color_used))
+            tabu_list.add((nodeId, color), violation, penalty)
+            if obj_function > evalutate(graph):
+                obj_function = evalutate(graph)
+                best_violation = graph.violation
+                last_impro = i
+            if i - last_impro >= epsilon * max_iter:
+                assignLeastFrequentAssignment(graph, tabu_list)
+                obj_function = evalutate(graph)
+                best_violation = graph.violation
+                last_impro = i 
+                continue
+            i += 1
+        if graph.violation == 0:
+            break 
+        assignRandomColor(graph)
+        tabu_list.clear()
+    return graph
+        
+            
+            
+def assignRandomColor(graph: Graph):
+    nodes_count = rd.randint(int(0.5 * len(graph)), int(len(graph)))
+    if nodes_count == 0:
+        nodes_count = 1
+    
+    color_count = rd.randint(1, len(graph.color_used))
+    node_change = set()
+    graph.color_used.clear()
+    for i in range(nodes_count):
         while True:
-            feasible, step_count = is_feasible(connection, color, i, tabu_limit)
-            if feasible:
-                feasible_color = color
-                feasible_color_count = i 
-                color = remove_color(feasible_color, feasible_color_count)
-                break;
+            nodeId = rd.randint(0, len(graph) - 1)
+            new_color = rd.randint(0, color_count - 1)
+            if nodeId not in node_change:
+                node_change.append(nodeId)
+                break 
         
-            retry_count += 1
-            if retry_count >= retry_limit:
-                return feasible_color
-            color = remove_color(feasible_color, feasible_color_count)
-    return feasible_color
+        assignColor(graph, nodeId, new_color, False)
+        graph.color_used.add(new_color)
+
+def assignLeastFrequentAssignment(graph : Graph, tabu_list):
+    consider_value = graph.violation
+    if len(tabu_list.frequencies.keys()) == 0:
+        assignRandomColor(graph)
+        return 
+    
+    if consider_value == 0:
+        consider_value = 1
+    
+    if consider_value > len(graph):
+        consider_value = len(graph)
         
+    frequency_values = list(set([tabu_list.frequencies[k][0] for k in tabu_list.frequencies.keys()]))
+    frequency_values = sorted(frequency_values)
     
+    if len(frequency_values) < consider_value:
+        consider_value = len(frequency_values)
+        
+    values_considered = frequency_values[: consider_value]
+    assignment = [k for k in tabu_list.frequencies.keys() if tabu_list.frequencies[k][0] in values_considered]
+    for i in assignment[:consider_value]:
+        assignColor(graph, i[0], i[1], False)
     
+def TabuSearch(graph : Graph, colors, max_iter = 100000):
+    colors_used = initSolution(graph, colors)
+    graph.color_used = copy.deepcopy(colors_used)
+    cur_solution_color = len(graph.color_used)
+    cur_solution = []
+    for i in range(len(graph)):
+        cur_solution.append(graph.nodes[i])
+    
+    obj_function = evalutate(graph)
+    alpha = int(1.25 * math.sqrt(len(graph)))
+    while True:
+        graph = removeColor(graph)
+        new_solution = getSolution(graph, max_iter, alpha)
+        if obj_function > evalutate(new_solution):
+            cur_solution_color = len(new_solution.color_used)
+            cur_solution = []
+            for i in range(len(new_solution)):
+                cur_solution.append(new_solution.nodes[i].color)
+            obj_function = evalutate(new_solution)
+        else:
+            break 
+        
+    return cur_solution_color, cur_solution
 
 def solve_it(input_data):
     lines = input_data.split('\n')
-
     first_line = lines[0].split()
     node_count = int(first_line[0])
     edge_count = int(first_line[1])
-    connection = [[] for i in range(node_count)]
+    graph = Graph(node_count)
     for i in range(1, edge_count + 1):
         line = lines[i]
         parts = line.split()
-        vs, ve = int(parts[0]), int(parts[1])
-        connection[vs].append(ve)
-        connection[ve].append(vs)
-    # build a trivial solution
-    # every node has its own color
-    # print(connection)
-    solution = search(connection)
-    print(solution)
-    # prepare the solution in the specified output format
-    output_data = str(node_count) + ' ' + str(0) + '\n'
-    output_data += ' '.join(map(str, solution))
+        graph.nodes[int(parts[0])].neighbor_node.append(
+            graph.nodes[int(parts[1])])
+        graph.nodes[int(parts[1])].neighbor_node.append(
+            graph.nodes[int(parts[0])])
+        graph.nodes[int(parts[0])].degree = graph.nodes[int(
+            parts[0])].degree + 1
+        graph.nodes[int(parts[1])].degree = graph.nodes[int(
+            parts[1])].degree + 1
 
+    graph.edge_count = edge_count
+    colors = set(range(0, node_count))
+    solutionColors, solution = TabuSearch(graph, colors)
+    # for s in solution:
+    #     print(s.color)
+    output_data = str(solutionColors) + ' ' + str(0) + '\n'
+    output_data += ' '.join(str(i.color) for i in solution)
+    del graph.nodes
+    del graph
+    gc.collect()
     return output_data
-
-
-import sys
-
+    
+    
+            
 if __name__ == '__main__':
-    import sys
     if len(sys.argv) > 1:
         file_location = sys.argv[1].strip()
         with open(file_location, 'r') as input_data_file:
@@ -229,4 +342,3 @@ if __name__ == '__main__':
         print(solve_it(input_data))
     else:
         print('This test requires an input file.  Please select one from the data directory. (i.e. python solver.py ./data/gc_4_1)')
-
