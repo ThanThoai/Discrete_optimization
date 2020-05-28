@@ -118,14 +118,14 @@ class GuildLocalSearch:
         return cost 
     
     def get_cost(self):
-        cost = 0.0 
-        for vehicle in self.vehicles:
-            cost += self.get_vehicle_cost(vehicle)
-        return cost 
-        # cost = []
+        # cost = 0.0 
         # for vehicle in self.vehicles:
-        #     cost.append(self.get_vehicle_cost(vehicle))
-        # return max(cost)
+        #     cost += self.get_vehicle_cost(vehicle)
+        # return cost 
+        cost = []
+        for vehicle in self.vehicles:
+            cost.append(self.get_vehicle_cost(vehicle))
+        return max(cost)
     
 
     def get_vehicle_augmented_cost(self,vehicle : Vehicle, l : float):
@@ -135,15 +135,15 @@ class GuildLocalSearch:
         return augmented_cost
     
     def get_augmented_cost(self, l):
-        augmented_cost = 0.0 
-        for vehicle in self.vehicles:
-            augmented_cost += self.get_vehicle_augmented_cost(vehicle, l)
-        return augmented_cost
-        
-        # augmented_cost = []
+        # augmented_cost = 0.0 
         # for vehicle in self.vehicles:
-        #     augmented_cost.append(self.get_vehicle_augmented_cost(vehicle, l))
-        # return max(augmented_cost)
+        #     augmented_cost += self.get_vehicle_augmented_cost(vehicle, l)
+        # return augmented_cost
+        
+        augmented_cost = []
+        for vehicle in self.vehicles:
+            augmented_cost.append(self.get_vehicle_augmented_cost(vehicle, l))
+        return max(augmented_cost)
     
     def init_lambda(self, alpha, cost):
         edge_count = 0
@@ -521,7 +521,7 @@ def solve_it(input_data):
     for i in track(range(vehicle_count)):
         vehicle = Vehicle()
         vehicle.index = i
-        vehicle.capacity = vehicle_capacity
+        vehicle.capacity = sys.maxsize
         vehicle.available = vehicle_capacity
         vehicles.append(vehicle)
     
